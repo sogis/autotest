@@ -1,0 +1,19 @@
+{
+  "dataproducts": [
+    {
+      "name": "dataservice.spatial_responses",
+      "attributes": ["id", "label"]
+    }
+  ],
+  "common_resources": [],
+  "roles": [
+    {
+      "role": "public",
+      "permissions": {
+        "all_services": {
+          "dataservice.spatial_responses": {}
+        }
+      }
+    }
+  ]
+}

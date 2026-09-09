@@ -145,6 +145,89 @@ class DataServiceTests {
 
     @Nested
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    class SpatialResponses {
+
+        private GenericContainer<?> dataService;
+
+        @BeforeAll
+        void startDataService() {
+            dataService = DataServiceTests.startDataService("spatial-responses");
+        }
+
+        @AfterAll
+        void stopDataService() {
+            dataService.stop();
+        }
+
+        @BeforeEach
+        void loadSpatialResponseFixture() {
+            SqlFixtures.applySql(DATABASE, "spatial-responses.sql");
+        }
+
+        @Test
+        void configuredSpatialFieldIsSerializedAsGeoJsonWithEpsg2056Coordinates() {
+            Response response = dataServiceRequest(dataService)
+                .queryParam("filter", "[\"id\",\"=\",1]")
+                .when()
+                .get("/api/v1/data/dataservice.spatial_responses/")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .response();
+
+            assertThatJson(response.asString()).when(IGNORING_EXTRA_FIELDS).isEqualTo("""
+                {
+                  "type": "FeatureCollection",
+                  "numberMatched": 1,
+                  "numberReturned": 1,
+                  "features": [
+                    {
+                      "type": "Feature",
+                      "id": 1,
+                      "geometry": {
+                        "type": "Point",
+                        "coordinates": [2600000, 1200000]
+                      },
+                      "properties": {"id": 1, "label": "Configured point"}
+                    }
+                  ]
+                }
+                """);
+        }
+
+        @Test
+        void nullConfiguredSpatialFieldIsSerializedAsNullGeometry() {
+            Response response = dataServiceRequest(dataService)
+                .queryParam("filter", "[\"id\",\"=\",2]")
+                .when()
+                .get("/api/v1/data/dataservice.spatial_responses/")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .extract()
+                .response();
+
+            assertThatJson(response.asString()).when(IGNORING_EXTRA_FIELDS).isEqualTo("""
+                {
+                  "type": "FeatureCollection",
+                  "numberMatched": 1,
+                  "numberReturned": 1,
+                  "features": [
+                    {
+                      "type": "Feature",
+                      "id": 2,
+                      "geometry": null,
+                      "properties": {"id": 2, "label": "No geometry"}
+                    }
+                  ]
+                }
+                """);
+        }
+    }
+
+    @Nested
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     class ModifyFeature {
 
         private static final String DATASET_PATH = "/api/v1/data/dataservice.modify_features/";
