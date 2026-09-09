@@ -1,0 +1,30 @@
+{
+  "service": "data",
+  "config": {},
+  "resources": {
+    "datasets": [
+      {
+        "name": "dataservice.error_writable",
+        "db_url": "postgresql://autotest:autotest@postgres:5432/autotest",
+        "schema": "dataservice",
+        "table_name": "error_features",
+        "primary_key": "id",
+        "fields": [
+          {"name": "id", "data_type": "integer"},
+          {"name": "name", "data_type": "text"}
+        ]
+      },
+      {
+        "name": "dataservice.error_read_only",
+        "db_url": "postgresql://autotest:autotest@postgres:5432/autotest",
+        "schema": "dataservice",
+        "table_name": "error_features",
+        "primary_key": "id",
+        "fields": [
+          {"name": "id", "data_type": "integer"},
+          {"name": "name", "data_type": "text"}
+        ]
+      }
+    ]
+  }
+}

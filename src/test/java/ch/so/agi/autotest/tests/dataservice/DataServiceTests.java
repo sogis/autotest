@@ -25,8 +25,14 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
 import static net.javacrumbs.jsonunit.core.Option.IGNORING_EXTRA_FIELDS;
 
@@ -385,6 +391,142 @@ class DataServiceTests {
                     .body("numberMatched", equalTo(1))
                     .body("numberReturned", equalTo(1))
                     .body("features.id", contains(1));
+        }
+    }
+
+    @Nested
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    class Errors {
+
+        private static final String WRITABLE_DATASET_PATH = "/api/v1/data/dataservice.error_writable/";
+        private static final String READ_ONLY_DATASET_PATH = "/api/v1/data/dataservice.error_read_only/";
+        private GenericContainer<?> dataService;
+
+        @BeforeAll
+        void startDataService() {
+            dataService = DataServiceTests.startDataService("errors");
+        }
+
+        @AfterAll
+        void stopDataService() {
+            dataService.stop();
+        }
+
+        @BeforeEach
+        void loadErrorFixture() {
+            SqlFixtures.applySql(DATABASE, "errors.sql");
+        }
+
+        @Test
+        void malformedBoundingBoxReturnsBadRequestError() {
+            Response response = dataServiceRequest(dataService)
+                    .queryParam("bbox", "not-a-bounding-box")
+                    .when()
+                    .get(READ_ONLY_DATASET_PATH);
+
+            assertErrorResponse(response, 400);
+        }
+
+        @Test
+        void invalidGeoJsonCreateReturnsValidationErrorWithoutCreatingFeature() {
+            Response response = dataServiceRequest(dataService)
+                    .contentType(ContentType.JSON)
+                    .body("""
+                    {
+                      "type": "NotAFeature",
+                      "properties": {"name": "Invalid feature"}
+                    }
+                    """)
+                    .when()
+                    .post(WRITABLE_DATASET_PATH);
+
+            assertErrorResponse(response, 422);
+            response.then()
+                    .body("validation_errors", not(empty()))
+                    .body("validation_errors[0]", instanceOf(String.class));
+            assertOnlyBaselineFeatureExists();
+        }
+
+        @Test
+        void unknownDatasetReturnsNotFoundError() {
+            Response response = dataServiceRequest(dataService)
+                    .when()
+                    .get("/api/v1/data/dataservice.unknown_dataset/");
+
+            assertErrorResponse(response, 404);
+        }
+
+        @Test
+        void missingFeatureReturnsNotFoundError() {
+            Response response = dataServiceRequest(dataService)
+                    .when()
+                    .get(READ_ONLY_DATASET_PATH + "999");
+
+            assertErrorResponse(response, 404);
+        }
+
+        @Test
+        void readOnlyDatasetRejectsCreateWithoutChangingFixture() {
+            Response response = dataServiceRequest(dataService)
+                    .contentType(ContentType.JSON)
+                    .body("""
+                    {
+                      "type": "Feature",
+                      "properties": {"name": "Rejected feature"}
+                    }
+                    """)
+                    .when()
+                    .post(READ_ONLY_DATASET_PATH);
+
+            assertErrorResponse(response, 405);
+            assertOnlyBaselineFeatureExists();
+        }
+
+        @Test
+        void readOnlyDatasetRejectsUpdateWithoutChangingFixture() {
+            Response response = dataServiceRequest(dataService)
+                    .contentType(ContentType.JSON)
+                    .body("""
+                    {
+                      "type": "Feature",
+                      "properties": {"name": "Changed feature"}
+                    }
+                    """)
+                    .when()
+                    .put(READ_ONLY_DATASET_PATH + "1");
+
+            assertErrorResponse(response, 405);
+            assertOnlyBaselineFeatureExists();
+        }
+
+        @Test
+        void readOnlyDatasetRejectsDeleteWithoutChangingFixture() {
+            Response response = dataServiceRequest(dataService)
+                    .when()
+                    .delete(READ_ONLY_DATASET_PATH + "1");
+
+            assertErrorResponse(response, 405);
+            assertOnlyBaselineFeatureExists();
+        }
+
+        private void assertErrorResponse(Response response, int expectedStatusCode) {
+            response.then()
+                    .statusCode(expectedStatusCode)
+                    .contentType(ContentType.JSON)
+                    .body("message", allOf(instanceOf(String.class), not(isEmptyOrNullString())))
+                    .body("type", nullValue());
+        }
+
+        private void assertOnlyBaselineFeatureExists() {
+            dataServiceRequest(dataService)
+                    .when()
+                    .get(READ_ONLY_DATASET_PATH)
+                    .then()
+                    .statusCode(200)
+                    .body("numberMatched", equalTo(1))
+                    .body("numberReturned", equalTo(1))
+                    .body("features.id", contains(1))
+                    .body("features[0].properties.name", equalTo("Baseline feature"));
         }
     }
 }

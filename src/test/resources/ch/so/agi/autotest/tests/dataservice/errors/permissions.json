@@ -1,0 +1,24 @@
+{
+  "dataproducts": [
+    {
+      "name": "dataservice.error_writable",
+      "attributes": ["id", "name"]
+    },
+    {
+      "name": "dataservice.error_read_only",
+      "attributes": ["id", "name"]
+    }
+  ],
+  "common_resources": [],
+  "roles": [
+    {
+      "role": "public",
+      "permissions": {
+        "all_services": {
+          "dataservice.error_writable": {"writable": true},
+          "dataservice.error_read_only": {}
+        }
+      }
+    }
+  ]
+}

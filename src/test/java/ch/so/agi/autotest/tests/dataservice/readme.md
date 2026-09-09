@@ -70,4 +70,4 @@ The following table shows the Tests classes and which aspects are covered by eac
 |FilterTest|x|-|-|-|x|-|-|-|-|-|
 |ModifyFeatureTest|-|x|(x)|(x)|-|x|x|x|-|-|
 |AuthorizationTest|x|x|-|-|x|x|x|x|x|
-|ErrorResponseTest|?|?|?|?|?|?|?|?|?|x|
+|Errors|—|—|—|—|—|—|—|—|—|x|
