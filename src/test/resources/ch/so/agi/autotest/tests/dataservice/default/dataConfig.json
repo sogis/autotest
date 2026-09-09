@@ -24,6 +24,22 @@
           {"name": "jsonb_value", "data_type": "jsonb"},
           {"name": "nullable_text_value", "data_type": "text"}
         ]
+      },
+      {
+        "name": "dataservice.filter_types",
+        "db_url": "postgresql://autotest:autotest@postgres:5432/autotest",
+        "schema": "dataservice",
+        "table_name": "filter_types",
+        "primary_key": "id",
+        "fields": [
+          {"name": "id", "data_type": "integer"},
+          {"name": "category", "data_type": "text"}
+        ],
+        "geometry": {
+          "geometry_column": "geometry",
+          "geometry_type": "POINT",
+          "srid": 2056
+        }
       }
     ]
   }

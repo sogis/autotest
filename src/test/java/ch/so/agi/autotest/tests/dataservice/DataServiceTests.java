@@ -23,6 +23,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
 
 @Execution(ExecutionMode.SAME_THREAD)
@@ -31,7 +33,8 @@ class DataServiceTests {
     private static final int HTTP_PORT = 9090;
     private static final Network NETWORK = Network.newNetwork();
     private static final PostgreSQLContainer DATABASE = new PostgreSQLContainer(
-        DockerImageName.parse("postgres:17.4-alpine"))
+        DockerImageName.parse("postgis/postgis:17-3.5-alpine")
+            .asCompatibleSubstituteFor("postgres"))
         .withDatabaseName("autotest")
         .withUsername("autotest")
         .withPassword("autotest")
@@ -57,6 +60,7 @@ class DataServiceTests {
         try (Connection connection = DATABASE.createConnection("");
              Statement statement = connection.createStatement()) {
             statement.execute("CREATE SCHEMA dataservice");
+            statement.execute("CREATE EXTENSION IF NOT EXISTS postgis");
         }
         DATA_SERVICE.start();
     }
@@ -119,6 +123,105 @@ class DataServiceTests {
                   ]
                 }
                 """);
+        }
+    }
+
+    @Nested
+    class FilterTest {
+
+        @Test
+        void filterByAttribute() {
+            SqlFixtures.applySql(DATABASE, "filter-types.sql");
+
+            dataServiceRequest()
+            .queryParam("filter", "[\"category\",\"=\",\"selected\"]")
+            .when()
+                .get("/api/v1/data/dataservice.filter_types/")
+            .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("type", equalTo("FeatureCollection"))
+                .body("numberMatched", equalTo(2))
+                .body("numberReturned", equalTo(2))
+                .body("features.id", contains(1, 3));
+        }
+
+        @Test
+        void filterByBoundingBox() {
+            SqlFixtures.applySql(DATABASE, "filter-types.sql");
+
+            dataServiceRequest()
+            .queryParam("bbox", "2599000,1199000,2601000,1201000")
+            .when()
+                .get("/api/v1/data/dataservice.filter_types/")
+            .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("type", equalTo("FeatureCollection"))
+                .body("numberMatched", equalTo(2))
+                .body("numberReturned", equalTo(2))
+                .body("features.id", contains(1, 2));
+        }
+
+        @Test
+        void filterByGeometry() {
+            SqlFixtures.applySql(DATABASE, "filter-types.sql");
+
+            dataServiceRequest()
+            .queryParam("filter_geom", """
+                {"type":"Polygon","crs":{"type":"name","properties":{"name":"EPSG:2056"}},"coordinates":[[[2599000,1199000],
+                [2601000,1199000],[2601000,1201000],[2599000,1201000],
+                [2599000,1199000]]]}
+                """)
+            .when()
+                .get("/api/v1/data/dataservice.filter_types/")
+            .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("type", equalTo("FeatureCollection"))
+                .body("numberMatched", equalTo(2))
+                .body("numberReturned", equalTo(2))
+                .body("features.id", contains(1, 2));
+        }
+
+        @Test
+        void combinedAttributeAndBoundingBoxFilters() {
+            SqlFixtures.applySql(DATABASE, "filter-types.sql");
+
+            dataServiceRequest()
+            .queryParam("filter", "[\"category\",\"=\",\"selected\"]")
+            .queryParam("bbox", "2599000,1199000,2601000,1201000")
+            .when()
+                .get("/api/v1/data/dataservice.filter_types/")
+            .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("type", equalTo("FeatureCollection"))
+                .body("numberMatched", equalTo(1))
+                .body("numberReturned", equalTo(1))
+                .body("features.id", contains(1));
+        }
+
+        @Test
+        void combinedAttributeAndGeometryFilters() {
+            SqlFixtures.applySql(DATABASE, "filter-types.sql");
+
+            dataServiceRequest()
+            .queryParam("filter", "[\"category\",\"=\",\"selected\"]")
+            .queryParam("filter_geom", """
+                {"type":"Polygon","crs":{"type":"name","properties":{"name":"EPSG:2056"}},"coordinates":[[[2599000,1199000],
+                [2601000,1199000],[2601000,1201000],[2599000,1201000],
+                [2599000,1199000]]]}
+                """)
+            .when()
+                .get("/api/v1/data/dataservice.filter_types/")
+            .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("type", equalTo("FeatureCollection"))
+                .body("numberMatched", equalTo(1))
+                .body("numberReturned", equalTo(1))
+                .body("features.id", contains(1));
         }
     }
 }
