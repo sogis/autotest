@@ -66,7 +66,7 @@ The following table shows the Tests classes and which aspects are covered by eac
 |Test class (DataServiceTest.?)|Collection read|Feature read|Data types|Spatial geometry|Filters|Create|Update|Delete|Permissions|Invalid request and not found|
 |---|---|---|---|---|---|---|---|---|---|---|
 |NonSpatialTypesTest|x|-|x|-|-|-|-|-|-|-|
-|SpatialTypesTest|x|-|-|x|-|-|-|-|-|-|
+|SpatialResponses|x|-|-|x|-|-|-|-|-|-|
 |FilterTest|x|-|-|-|x|-|-|-|-|-|
 |ModifyFeatureTest|-|x|(x)|(x)|-|x|x|x|-|-|
 |AuthorizationTest|x|x|-|-|x|x|x|x|x|
