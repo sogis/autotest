@@ -17,6 +17,14 @@
         "jsonb_value",
         "nullable_text_value"
       ]
+    },
+    {
+      "name": "dataservice.modify_features",
+      "attributes": [
+        "id",
+        "name",
+        "category"
+      ]
     }
   ],
   "common_resources": [],
@@ -25,7 +33,8 @@
       "role": "public",
       "permissions": {
         "all_services": {
-          "dataservice.attribute_types": {}
+          "dataservice.attribute_types": {},
+          "dataservice.modify_features": {"writable": true}
         }
       }
     }

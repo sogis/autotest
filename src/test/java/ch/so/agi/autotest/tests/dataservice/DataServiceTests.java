@@ -7,6 +7,7 @@ import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
@@ -24,6 +25,8 @@ import java.sql.Statement;
 
 import static io.restassured.RestAssured.given;
 import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
+import static net.javacrumbs.jsonunit.core.Option.IGNORING_EXTRA_FIELDS;
+import static org.hamcrest.Matchers.equalTo;
 
 @Execution(ExecutionMode.SAME_THREAD)
 class DataServiceTests {
@@ -31,7 +34,8 @@ class DataServiceTests {
     private static final int HTTP_PORT = 9090;
     private static final Network NETWORK = Network.newNetwork();
     private static final PostgreSQLContainer DATABASE = new PostgreSQLContainer(
-        DockerImageName.parse("postgres:17.4-alpine"))
+        DockerImageName.parse("postgis/postgis:17-3.5-alpine")
+            .asCompatibleSubstituteFor("postgres"))
         .withDatabaseName("autotest")
         .withUsername("autotest")
         .withPassword("autotest")
@@ -119,6 +123,127 @@ class DataServiceTests {
                   ]
                 }
                 """);
+        }
+    }
+
+    @Nested
+    class ModifyFeature {
+
+        private static final String DATASET_PATH = "/api/v1/data/dataservice.modify_features/";
+
+        @BeforeEach
+        void loadModifyFeatureFixture() {
+            SqlFixtures.applySql(DATABASE, "modify-features.sql");
+        }
+
+        @Test
+        void permittedClientCreatesFeatureWithSpatialAndNonSpatialAttributes() {
+            Response response = dataServiceRequest()
+                .contentType(ContentType.JSON)
+                .body("""
+                    {
+                      "type": "Feature",
+                      "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:EPSG::2056"}},
+                      "geometry": {"type": "Point", "coordinates": [2600050, 1200060]},
+                      "properties": {"name": "Created feature", "category": "created"}
+                    }
+                    """)
+            .when()
+                .post(DATASET_PATH)
+            .then()
+                .statusCode(201)
+                .contentType(ContentType.JSON)
+                .extract()
+                .response();
+
+            int featureId = response.path("id");
+
+            assertThatJson(dataServiceRequest().when().get(DATASET_PATH + featureId).then()
+                .statusCode(200)
+                .extract().asString()).when(IGNORING_EXTRA_FIELDS).isEqualTo("""
+                {
+                  "type": "Feature",
+                  "id": %d,
+                  "geometry": {"type": "Point", "coordinates": [2600050, 1200060]},
+                  "properties": {"id": %d, "name": "Created feature", "category": "created"}
+                }
+                """.formatted(featureId, featureId));
+        }
+
+        @Test
+        void permittedClientUpdatesExistingFeatureGeometry() {
+            dataServiceRequest()
+                .contentType(ContentType.JSON)
+                .body("""
+                    {
+                      "type": "Feature",
+                      "id": 1,
+                      "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:EPSG::2056"}},
+                      "geometry": {"type": "Point", "coordinates": [2600100, 1200100]},
+                      "properties": {"id": 1, "name": "Existing feature", "category": "baseline"}
+                    }
+                    """)
+            .when()
+                .put(DATASET_PATH + "1")
+            .then()
+                .statusCode(200);
+
+            assertThatJson(dataServiceRequest().when().get(DATASET_PATH + "1").then()
+                .statusCode(200)
+                .extract().asString()).when(IGNORING_EXTRA_FIELDS).isEqualTo("""
+                {
+                  "type": "Feature",
+                  "id": 1,
+                  "geometry": {"type": "Point", "coordinates": [2600100, 1200100]},
+                  "properties": {"id": 1, "name": "Existing feature", "category": "baseline"}
+                }
+                """);
+        }
+
+        @Test
+        void permittedClientUpdatesExistingFeatureNonSpatialAttributes() {
+            dataServiceRequest()
+                .contentType(ContentType.JSON)
+                .body("""
+                    {
+                      "type": "Feature",
+                      "id": 1,
+                      "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:EPSG::2056"}},
+                      "geometry": {"type": "Point", "coordinates": [2600000, 1200000]},
+                      "properties": {"id": 1, "name": "Renamed feature", "category": "updated"}
+                    }
+                    """)
+            .when()
+                .put(DATASET_PATH + "1")
+            .then()
+                .statusCode(200);
+
+            assertThatJson(dataServiceRequest().when().get(DATASET_PATH + "1").then()
+                .statusCode(200)
+                .extract().asString()).when(IGNORING_EXTRA_FIELDS).isEqualTo("""
+                {
+                  "type": "Feature",
+                  "id": 1,
+                  "geometry": {"type": "Point", "coordinates": [2600000, 1200000]},
+                  "properties": {"id": 1, "name": "Renamed feature", "category": "updated"}
+                }
+                """);
+        }
+
+        @Test
+        void permittedClientDeletesExistingFeature() {
+            dataServiceRequest()
+            .when()
+                .delete(DATASET_PATH + "1")
+            .then()
+                .statusCode(200)
+                .body("message", equalTo("Dataset feature deleted"));
+
+            dataServiceRequest()
+            .when()
+                .get(DATASET_PATH + "1")
+            .then()
+                .statusCode(404);
         }
     }
 }
