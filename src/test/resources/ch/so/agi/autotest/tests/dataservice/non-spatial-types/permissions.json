@@ -17,13 +17,6 @@
         "jsonb_value",
         "nullable_text_value"
       ]
-    },
-    {
-      "name": "dataservice.filter_types",
-      "attributes": [
-        "id",
-        "category"
-      ]
     }
   ],
   "common_resources": [],
@@ -32,8 +25,7 @@
       "role": "public",
       "permissions": {
         "all_services": {
-          "dataservice.attribute_types": {},
-          "dataservice.filter_types": {}
+          "dataservice.attribute_types": {}
         }
       }
     }

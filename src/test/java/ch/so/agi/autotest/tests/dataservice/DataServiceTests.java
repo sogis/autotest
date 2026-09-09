@@ -7,8 +7,10 @@ import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.testcontainers.containers.GenericContainer;
@@ -26,6 +28,7 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
+import static net.javacrumbs.jsonunit.core.Option.IGNORING_EXTRA_FIELDS;
 
 @Execution(ExecutionMode.SAME_THREAD)
 class DataServiceTests {
@@ -40,20 +43,6 @@ class DataServiceTests {
         .withPassword("autotest")
         .withNetwork(NETWORK)
         .withNetworkAliases("postgres");
-    private static final GenericContainer<?> DATA_SERVICE = new GenericContainer<>(
-        DockerImageName.parse("sourcepole/qwc-data-service:v2026.1-lts"))
-        .withNetwork(NETWORK)
-        .withCopyFileToContainer(MountableFile.forClasspathResource(
-            "ch/so/agi/autotest/tests/dataservice/default/dataConfig.json"),
-            "/config/default/dataConfig.json")
-        .withCopyFileToContainer(MountableFile.forClasspathResource(
-            "ch/so/agi/autotest/tests/dataservice/default/permissions.json"),
-            "/config/default/permissions.json")
-        .withEnv("CONFIG_PATH", "/config")
-        .withExposedPorts(HTTP_PORT)
-        .withLogConsumer(HttpTraffic.containerLogConsumer("data-service"))
-        .waitingFor(Wait.forHttp("/ready").forStatusCode(200));
-
     @BeforeAll
     static void startEnvironment() throws SQLException {
         DATABASE.start();
@@ -62,30 +51,58 @@ class DataServiceTests {
             statement.execute("CREATE SCHEMA dataservice");
             statement.execute("CREATE EXTENSION IF NOT EXISTS postgis");
         }
-        DATA_SERVICE.start();
     }
 
     @AfterAll
     static void stopEnvironment() {
-        DATA_SERVICE.stop();
         DATABASE.stop();
         NETWORK.close();
     }
 
-    private static RequestSpecification dataServiceRequest() {
+    private static GenericContainer<?> startDataService(String configurationDirectory) {
+        String resourceDirectory = "ch/so/agi/autotest/tests/dataservice/" + configurationDirectory;
+        GenericContainer<?> dataService = new GenericContainer<>(
+            DockerImageName.parse("sourcepole/qwc-data-service:v2026.1-lts"))
+            .withNetwork(NETWORK)
+            .withCopyFileToContainer(MountableFile.forClasspathResource(
+                resourceDirectory + "/dataConfig.json"), "/config/default/dataConfig.json")
+            .withCopyFileToContainer(MountableFile.forClasspathResource(
+                resourceDirectory + "/permissions.json"), "/config/default/permissions.json")
+            .withEnv("CONFIG_PATH", "/config")
+            .withExposedPorts(HTTP_PORT)
+            .withLogConsumer(HttpTraffic.containerLogConsumer("data-service"))
+            .waitingFor(Wait.forHttp("/ready").forStatusCode(200));
+        dataService.start();
+        return dataService;
+    }
+
+    private static RequestSpecification dataServiceRequest(GenericContainer<?> dataService) {
         return given()
             .filters(HttpTraffic.restAssuredFilters())
             .baseUri("http://%s:%d".formatted(
-                DATA_SERVICE.getHost(), DATA_SERVICE.getMappedPort(HTTP_PORT)));
+                dataService.getHost(), dataService.getMappedPort(HTTP_PORT)));
     }
 
     @Nested
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     class NonSpatialTypesTest {
+
+        private GenericContainer<?> dataService;
+
+        @BeforeAll
+        void startDataService() {
+            dataService = DataServiceTests.startDataService("non-spatial-types");
+        }
+
+        @AfterAll
+        void stopDataService() {
+            dataService.stop();
+        }
 
         @Test
         void anonymousPublicReadSerializesNonSpatialColumnTypesAsGeoJson() {
             SqlFixtures.applySql(DATABASE, "nonspatial-types.sql");
-            Response response = dataServiceRequest()
+            Response response = dataServiceRequest(dataService)
             .when()
                 .get("/api/v1/data/dataservice.attribute_types/")
             .then()
@@ -127,101 +144,247 @@ class DataServiceTests {
     }
 
     @Nested
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    class ModifyFeature {
+
+        private static final String DATASET_PATH = "/api/v1/data/dataservice.modify_features/";
+        private GenericContainer<?> dataService;
+
+        @BeforeAll
+        void startDataService() {
+            dataService = DataServiceTests.startDataService("modify-feature");
+        }
+
+        @AfterAll
+        void stopDataService() {
+            dataService.stop();
+        }
+
+        @BeforeEach
+        void loadModifyFeatureFixture() {
+            SqlFixtures.applySql(DATABASE, "modify-features.sql");
+        }
+
+        @Test
+        void permittedClientCreatesFeatureWithSpatialAndNonSpatialAttributes() {
+            Response response = dataServiceRequest(dataService)
+                    .contentType(ContentType.JSON)
+                    .body("""
+                    {
+                      "type": "Feature",
+                      "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:EPSG::2056"}},
+                      "geometry": {"type": "Point", "coordinates": [2600050, 1200060]},
+                      "properties": {"name": "Created feature", "category": "created"}
+                    }
+                    """)
+                    .when()
+                    .post(DATASET_PATH)
+                    .then()
+                    .statusCode(201)
+                    .contentType(ContentType.JSON)
+                    .extract()
+                    .response();
+
+            int featureId = response.path("id");
+
+            assertThatJson(dataServiceRequest(dataService).when().get(DATASET_PATH + featureId).then()
+                    .statusCode(200)
+                    .extract().asString()).when(IGNORING_EXTRA_FIELDS).isEqualTo("""
+                {
+                  "type": "Feature",
+                  "id": %d,
+                  "geometry": {"type": "Point", "coordinates": [2600050, 1200060]},
+                  "properties": {"id": %d, "name": "Created feature", "category": "created"}
+                }
+                """.formatted(featureId, featureId));
+        }
+
+        @Test
+        void permittedClientUpdatesExistingFeatureGeometry() {
+            dataServiceRequest(dataService)
+                    .contentType(ContentType.JSON)
+                    .body("""
+                    {
+                      "type": "Feature",
+                      "id": 1,
+                      "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:EPSG::2056"}},
+                      "geometry": {"type": "Point", "coordinates": [2600100, 1200100]},
+                      "properties": {"id": 1, "name": "Existing feature", "category": "baseline"}
+                    }
+                    """)
+                    .when()
+                    .put(DATASET_PATH + "1")
+                    .then()
+                    .statusCode(200);
+
+            assertThatJson(dataServiceRequest(dataService).when().get(DATASET_PATH + "1").then()
+                    .statusCode(200)
+                    .extract().asString()).when(IGNORING_EXTRA_FIELDS).isEqualTo("""
+                {
+                  "type": "Feature",
+                  "id": 1,
+                  "geometry": {"type": "Point", "coordinates": [2600100, 1200100]},
+                  "properties": {"id": 1, "name": "Existing feature", "category": "baseline"}
+                }
+                """);
+        }
+
+        @Test
+        void permittedClientUpdatesExistingFeatureNonSpatialAttributes() {
+            dataServiceRequest(dataService)
+                    .contentType(ContentType.JSON)
+                    .body("""
+                    {
+                      "type": "Feature",
+                      "id": 1,
+                      "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:EPSG::2056"}},
+                      "geometry": {"type": "Point", "coordinates": [2600000, 1200000]},
+                      "properties": {"id": 1, "name": "Renamed feature", "category": "updated"}
+                    }
+                    """)
+                    .when()
+                    .put(DATASET_PATH + "1")
+                    .then()
+                    .statusCode(200);
+
+            assertThatJson(dataServiceRequest(dataService).when().get(DATASET_PATH + "1").then()
+                    .statusCode(200)
+                    .extract().asString()).when(IGNORING_EXTRA_FIELDS).isEqualTo("""
+                {
+                  "type": "Feature",
+                  "id": 1,
+                  "geometry": {"type": "Point", "coordinates": [2600000, 1200000]},
+                  "properties": {"id": 1, "name": "Renamed feature", "category": "updated"}
+                }
+                """);
+        }
+
+        @Test
+        void permittedClientDeletesExistingFeature() {
+            dataServiceRequest(dataService)
+                    .when()
+                    .delete(DATASET_PATH + "1")
+                    .then()
+                    .statusCode(200)
+                    .body("message", equalTo("Dataset feature deleted"));
+
+            dataServiceRequest(dataService)
+                    .when()
+                    .get(DATASET_PATH + "1")
+                    .then()
+                    .statusCode(404);
+        }
+    }
+
+    @Nested
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     class FilterTest {
+
+        private GenericContainer<?> dataService;
+
+        @BeforeAll
+        void startDataService() {
+            dataService = DataServiceTests.startDataService("filter");
+        }
+
+        @AfterAll
+        void stopDataService() {
+            dataService.stop();
+        }
 
         @Test
         void filterByAttribute() {
             SqlFixtures.applySql(DATABASE, "filter-types.sql");
 
-            dataServiceRequest()
-            .queryParam("filter", "[\"category\",\"=\",\"selected\"]")
-            .when()
-                .get("/api/v1/data/dataservice.filter_types/")
-            .then()
-                .statusCode(200)
-                .contentType(ContentType.JSON)
-                .body("type", equalTo("FeatureCollection"))
-                .body("numberMatched", equalTo(2))
-                .body("numberReturned", equalTo(2))
-                .body("features.id", contains(1, 3));
+            dataServiceRequest(dataService)
+                    .queryParam("filter", "[\"category\",\"=\",\"selected\"]")
+                    .when()
+                    .get("/api/v1/data/dataservice.filter_types/")
+                    .then()
+                    .statusCode(200)
+                    .contentType(ContentType.JSON)
+                    .body("type", equalTo("FeatureCollection"))
+                    .body("numberMatched", equalTo(2))
+                    .body("numberReturned", equalTo(2))
+                    .body("features.id", contains(1, 3));
         }
 
         @Test
         void filterByBoundingBox() {
             SqlFixtures.applySql(DATABASE, "filter-types.sql");
 
-            dataServiceRequest()
-            .queryParam("bbox", "2599000,1199000,2601000,1201000")
-            .when()
-                .get("/api/v1/data/dataservice.filter_types/")
-            .then()
-                .statusCode(200)
-                .contentType(ContentType.JSON)
-                .body("type", equalTo("FeatureCollection"))
-                .body("numberMatched", equalTo(2))
-                .body("numberReturned", equalTo(2))
-                .body("features.id", contains(1, 2));
+            dataServiceRequest(dataService)
+                    .queryParam("bbox", "2599000,1199000,2601000,1201000")
+                    .when()
+                    .get("/api/v1/data/dataservice.filter_types/")
+                    .then()
+                    .statusCode(200)
+                    .contentType(ContentType.JSON)
+                    .body("type", equalTo("FeatureCollection"))
+                    .body("numberMatched", equalTo(2))
+                    .body("numberReturned", equalTo(2))
+                    .body("features.id", contains(1, 2));
         }
 
         @Test
         void filterByGeometry() {
             SqlFixtures.applySql(DATABASE, "filter-types.sql");
 
-            dataServiceRequest()
-            .queryParam("filter_geom", """
+            dataServiceRequest(dataService)
+                    .queryParam("filter_geom", """
                 {"type":"Polygon","crs":{"type":"name","properties":{"name":"EPSG:2056"}},"coordinates":[[[2599000,1199000],
                 [2601000,1199000],[2601000,1201000],[2599000,1201000],
                 [2599000,1199000]]]}
                 """)
-            .when()
-                .get("/api/v1/data/dataservice.filter_types/")
-            .then()
-                .statusCode(200)
-                .contentType(ContentType.JSON)
-                .body("type", equalTo("FeatureCollection"))
-                .body("numberMatched", equalTo(2))
-                .body("numberReturned", equalTo(2))
-                .body("features.id", contains(1, 2));
+                    .when()
+                    .get("/api/v1/data/dataservice.filter_types/")
+                    .then()
+                    .statusCode(200)
+                    .contentType(ContentType.JSON)
+                    .body("type", equalTo("FeatureCollection"))
+                    .body("numberMatched", equalTo(2))
+                    .body("numberReturned", equalTo(2))
+                    .body("features.id", contains(1, 2));
         }
 
         @Test
         void combinedAttributeAndBoundingBoxFilters() {
             SqlFixtures.applySql(DATABASE, "filter-types.sql");
 
-            dataServiceRequest()
-            .queryParam("filter", "[\"category\",\"=\",\"selected\"]")
-            .queryParam("bbox", "2599000,1199000,2601000,1201000")
-            .when()
-                .get("/api/v1/data/dataservice.filter_types/")
-            .then()
-                .statusCode(200)
-                .contentType(ContentType.JSON)
-                .body("type", equalTo("FeatureCollection"))
-                .body("numberMatched", equalTo(1))
-                .body("numberReturned", equalTo(1))
-                .body("features.id", contains(1));
+            dataServiceRequest(dataService)
+                    .queryParam("filter", "[\"category\",\"=\",\"selected\"]")
+                    .queryParam("bbox", "2599000,1199000,2601000,1201000")
+                    .when()
+                    .get("/api/v1/data/dataservice.filter_types/")
+                    .then()
+                    .statusCode(200)
+                    .contentType(ContentType.JSON)
+                    .body("type", equalTo("FeatureCollection"))
+                    .body("numberMatched", equalTo(1))
+                    .body("numberReturned", equalTo(1))
+                    .body("features.id", contains(1));
         }
 
         @Test
         void combinedAttributeAndGeometryFilters() {
             SqlFixtures.applySql(DATABASE, "filter-types.sql");
 
-            dataServiceRequest()
-            .queryParam("filter", "[\"category\",\"=\",\"selected\"]")
-            .queryParam("filter_geom", """
+            dataServiceRequest(dataService)
+                    .queryParam("filter", "[\"category\",\"=\",\"selected\"]")
+                    .queryParam("filter_geom", """
                 {"type":"Polygon","crs":{"type":"name","properties":{"name":"EPSG:2056"}},"coordinates":[[[2599000,1199000],
                 [2601000,1199000],[2601000,1201000],[2599000,1201000],
                 [2599000,1199000]]]}
                 """)
-            .when()
-                .get("/api/v1/data/dataservice.filter_types/")
-            .then()
-                .statusCode(200)
-                .contentType(ContentType.JSON)
-                .body("type", equalTo("FeatureCollection"))
-                .body("numberMatched", equalTo(1))
-                .body("numberReturned", equalTo(1))
-                .body("features.id", contains(1));
+                    .when()
+                    .get("/api/v1/data/dataservice.filter_types/")
+                    .then()
+                    .statusCode(200)
+                    .contentType(ContentType.JSON)
+                    .body("type", equalTo("FeatureCollection"))
+                    .body("numberMatched", equalTo(1))
+                    .body("numberReturned", equalTo(1))
+                    .body("features.id", contains(1));
         }
     }
 }

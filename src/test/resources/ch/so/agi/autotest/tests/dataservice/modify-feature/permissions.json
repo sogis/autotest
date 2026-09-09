@@ -1,0 +1,19 @@
+{
+  "dataproducts": [
+    {
+      "name": "dataservice.modify_features",
+      "attributes": ["id", "name", "category"]
+    }
+  ],
+  "common_resources": [],
+  "roles": [
+    {
+      "role": "public",
+      "permissions": {
+        "all_services": {
+          "dataservice.modify_features": {"writable": true}
+        }
+      }
+    }
+  ]
+}

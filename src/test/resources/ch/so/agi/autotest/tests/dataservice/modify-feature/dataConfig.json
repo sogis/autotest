@@ -1,0 +1,25 @@
+{
+  "service": "data",
+  "config": {},
+  "resources": {
+    "datasets": [
+      {
+        "name": "dataservice.modify_features",
+        "db_url": "postgresql://autotest:autotest@postgres:5432/autotest",
+        "schema": "dataservice",
+        "table_name": "modify_features",
+        "primary_key": "id",
+        "fields": [
+          {"name": "id", "data_type": "integer"},
+          {"name": "name", "data_type": "text"},
+          {"name": "category", "data_type": "text"}
+        ],
+        "geometry": {
+          "geometry_column": "geom",
+          "geometry_type": "POINT",
+          "srid": 2056
+        }
+      }
+    ]
+  }
+}

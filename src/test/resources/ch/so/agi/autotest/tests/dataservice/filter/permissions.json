@@ -1,0 +1,19 @@
+{
+  "dataproducts": [
+    {
+      "name": "dataservice.filter_types",
+      "attributes": ["id", "category"]
+    }
+  ],
+  "common_resources": [],
+  "roles": [
+    {
+      "role": "public",
+      "permissions": {
+        "all_services": {
+          "dataservice.filter_types": {}
+        }
+      }
+    }
+  ]
+}
