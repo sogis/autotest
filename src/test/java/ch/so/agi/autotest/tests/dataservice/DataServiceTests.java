@@ -76,11 +76,11 @@ class DataServiceTests {
     }
 
     @Nested
-    class ColumnTypes {
+    class NonSpatialTypesTest {
 
         @Test
         void anonymousPublicReadSerializesNonSpatialColumnTypesAsGeoJson() {
-            SqlFixtures.applySql(DATABASE, "column-types.sql");
+            SqlFixtures.applySql(DATABASE, "nonspatial-types.sql");
             Response response = dataServiceRequest()
             .when()
                 .get("/api/v1/data/dataservice.attribute_types/")
