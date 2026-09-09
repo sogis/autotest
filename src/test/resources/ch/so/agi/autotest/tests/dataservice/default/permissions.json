@@ -1,0 +1,33 @@
+{
+  "dataproducts": [
+    {
+      "name": "dataservice.attribute_types",
+      "attributes": [
+        "id",
+        "integer_value",
+        "bigint_value",
+        "decimal_value",
+        "boolean_value",
+        "uuid_value",
+        "date_value",
+        "datetime_value",
+        "varchar_value",
+        "text_value",
+        "json_value",
+        "jsonb_value",
+        "nullable_text_value"
+      ]
+    }
+  ],
+  "common_resources": [],
+  "roles": [
+    {
+      "role": "public",
+      "permissions": {
+        "all_services": {
+          "dataservice.attribute_types": {}
+        }
+      }
+    }
+  ]
+}

@@ -34,16 +34,16 @@ Always use the checked-in Gradle Wrapper from the repository root:
 Run one test class:
 
 ```sh
-./gradlew test --tests 'ch.so.agi.autotest.httpbin.HttpbinTest'
+./gradlew test --tests 'ch.so.agi.autotest.tests.httpbin.HttpbinTest'
 ```
 
 Run all test classes in an API package and any of its subpackages:
 
 ```sh
-./gradlew test --tests 'ch.so.agi.autotest.httpbin.*'
+./gradlew test --tests 'ch.so.agi.autotest.tests.httpbin.*'
 ```
 
-Replace `ch.so.agi.autotest.httpbin` with the package for the API under test.
+Replace `ch.so.agi.autotest.tests.httpbin` with the package for the API under test.
 
 ## Test environment
 
@@ -56,6 +56,13 @@ You do not need to start the API container manually or reserve a local port.
 Docker must remain available for the full test run.
 
 ## Results and troubleshooting
+
+Run with option --PhttpTraffic to output the http traffic and the 
+log of the container under test.
+
+```sh
+./gradlew test -PhttpTraffic
+```
 
 After a run, open the HTML report at:
 

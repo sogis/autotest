@@ -1,0 +1,30 @@
+{
+  "service": "data",
+  "config": {},
+  "resources": {
+    "datasets": [
+      {
+        "name": "dataservice.attribute_types",
+        "db_url": "postgresql://autotest:autotest@postgres:5432/autotest",
+        "schema": "dataservice",
+        "table_name": "attribute_types",
+        "primary_key": "id",
+        "fields": [
+          {"name": "id", "data_type": "integer"},
+          {"name": "integer_value", "data_type": "integer"},
+          {"name": "bigint_value", "data_type": "bigint"},
+          {"name": "decimal_value", "data_type": "numeric"},
+          {"name": "boolean_value", "data_type": "boolean"},
+          {"name": "uuid_value", "data_type": "uuid"},
+          {"name": "date_value", "data_type": "date"},
+          {"name": "datetime_value", "data_type": "timestamp without time zone"},
+          {"name": "varchar_value", "data_type": "character varying"},
+          {"name": "text_value", "data_type": "text"},
+          {"name": "json_value", "data_type": "json"},
+          {"name": "jsonb_value", "data_type": "jsonb"},
+          {"name": "nullable_text_value", "data_type": "text"}
+        ]
+      }
+    ]
+  }
+}
