@@ -35,4 +35,8 @@ The matrix shows, which test class covers the above noted aspects
 
 |Test Class|ai?|nas?|sas?|gtr?|icr?|vcr?|ceh?|
 |---|---|---|---|---|---|---|---|
-|Test Class|ai?|nas?|sas?|gtr?|icr?|vcr?|ceh?|
+|Featureclass|x|x|x|-|-|-|-|
+|Rasterlayer|-|-|-|x|x|-|-|
+|Vectorlayer|-|-|-|-|-|x|-|
+|Commandline|-|-|-|-|-|-|x|
+

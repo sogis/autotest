@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<qgis version="3.44.14-Solothurn" projectname="json2qgs readiness">
+  <title>json2qgs readiness</title>
+  <projectCrs>
+    <spatialrefsys>
+      <srsid>47</srsid>
+      <srid>2056</srid>
+      <authid>EPSG:2056</authid>
+      <description>CH1903+ / LV95</description>
+      <projectionacronym>somerc</projectionacronym>
+      <ellipsoidacronym>bessel</ellipsoidacronym>
+      <geographicflag>false</geographicflag>
+    </spatialrefsys>
+  </projectCrs>
+  <mapcanvas>
+    <units>meters</units>
+    <extent>
+      <xmin>2599000</xmin>
+      <ymin>1199000</ymin>
+      <xmax>2601000</xmax>
+      <ymax>1201000</ymax>
+    </extent>
+    <destinationsrs>
+      <spatialrefsys>
+        <srsid>47</srsid>
+        <srid>2056</srid>
+        <authid>EPSG:2056</authid>
+        <description>CH1903+ / LV95</description>
+        <projectionacronym>somerc</projectionacronym>
+        <ellipsoidacronym>bessel</ellipsoidacronym>
+        <geographicflag>false</geographicflag>
+      </spatialrefsys>
+    </destinationsrs>
+  </mapcanvas>
+  <layer-tree-group name="" checked="Qt::Checked">
+    <layer-tree-layer id="readiness_point" name="readiness_point" checked="Qt::Checked"/>
+  </layer-tree-group>
+  <projectlayers>
+    <maplayer type="vector" geometry="Point" simplifyDrawingHints="0">
+      <id>readiness_point</id>
+      <layername>readiness_point</layername>
+      <shortname>readiness_point</shortname>
+      <datasource>dbname='autotest' host=postgres port=5432 user='autotest' password='autotest' sslmode=disable key='id' srid=2056 type=Point table="json2qgs"."readiness_point" (geom)</datasource>
+      <provider encoding="UTF-8">postgres</provider>
+      <srs>
+        <spatialrefsys>
+          <srsid>47</srsid>
+          <srid>2056</srid>
+          <authid>EPSG:2056</authid>
+          <description>CH1903+ / LV95</description>
+          <projectionacronym>somerc</projectionacronym>
+          <ellipsoidacronym>bessel</ellipsoidacronym>
+          <geographicflag>false</geographicflag>
+        </spatialrefsys>
+      </srs>
+      <extent>
+        <xmin>2599000</xmin>
+        <ymin>1199000</ymin>
+        <xmax>2601000</xmax>
+        <ymax>1201000</ymax>
+      </extent>
+      <renderer-v2 type="singleSymbol">
+        <symbols>
+          <symbol name="0" type="marker" alpha="1">
+            <layer class="SimpleMarker" enabled="1">
+              <Option type="Map">
+                <Option name="name" type="QString" value="circle"/>
+                <Option name="color" type="QString" value="0,0,255,255"/>
+                <Option name="size" type="QString" value="2"/>
+                <Option name="size_unit" type="QString" value="MM"/>
+              </Option>
+            </layer>
+          </symbol>
+        </symbols>
+      </renderer-v2>
+    </maplayer>
+  </projectlayers>
+  <properties>
+    <WMSServiceCapabilities type="bool">true</WMSServiceCapabilities>
+    <WMSServiceTitle type="QString">json2qgs readiness</WMSServiceTitle>
+    <WMSUseLayerIDs type="bool">false</WMSUseLayerIDs>
+    <WMSCrsList type="QStringList">
+      <value>EPSG:2056</value>
+      <value>EPSG:4326</value>
+    </WMSCrsList>
+    <WMSExtent type="QStringList">
+      <value>2599000</value>
+      <value>1199000</value>
+      <value>2601000</value>
+      <value>1201000</value>
+    </WMSExtent>
+  </properties>
+</qgis>
