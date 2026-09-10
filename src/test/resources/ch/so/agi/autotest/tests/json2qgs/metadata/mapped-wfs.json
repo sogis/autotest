@@ -1,0 +1,27 @@
+{
+  "$schema": "http://127.0.0.1:8080/sogis-wfs-qgs-content.json",
+  "wfs_metadata": {
+    "service_name": "WFS",
+    "service_title": "Mapped WFS service",
+    "service_abstract": "WFS metadata supplied by the fixture",
+    "keywords": ["metadata", "wfs-mapped"],
+    "online_resource": "https://example.test/services/mapped-wfs",
+    "fees": "none",
+    "access_constraints": "public"
+  },
+  "layers": [{
+    "name": "mapped_wfs_featureclass",
+    "title": "Mapped WFS feature class",
+    "postgis_datasource": {
+      "dbconnection": "dbname='autotest' host=postgres port=5432 user='autotest' password='autotest'",
+      "schema": "json2qgs",
+      "table": "readiness_point",
+      "unique_key": "id",
+      "geometry_field": "geom",
+      "geometry_type": "POINT",
+      "srid": 2056
+    },
+    "attributes": [{"name": "id"}],
+    "bbox": {"bounds": [2600000, 1200000, 2600010, 1200010], "srid": 2056}
+  }]
+}

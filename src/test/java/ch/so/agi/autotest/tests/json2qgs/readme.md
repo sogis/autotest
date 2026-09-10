@@ -25,6 +25,7 @@ Use synthetic, versioned, deterministic fixtures for all scenarios.
 |layer|Single GeoTIFF rendering (gtr)|WMS publishes and renders the expected raster.|
 |layer|Image catalogue rendering (icr)|WMS publishes and renders the expected raster.|
 |layer|Vector geometry rendering (vcr)|WMS GetMap renders point, line, and polygon layers, including multipart geometries.|
+|meta|Layer and Featureclass Metadata (meta)|Asserts that the defined metadata in the Standards WMS and WFS are rendered by json2qgs and returned by the corresponding API calls.|
 |cli|CLI error handling (ceh)|Invalid arguments, missing or unreadable input, malformed configuration, invalid required settings, and unwritable output produce a nonzero exit status and useful diagnostics.|
 
 Styling, labeling, and scale rules are outside this focused scope.
@@ -33,9 +34,13 @@ Styling, labeling, and scale rules are outside this focused scope.
 
 The matrix shows, which test class covers the above noted aspects 
 
-|Test Class|ai?|nas?|sas?|gtr?|icr?|vcr?|ceh?|
-|---|---|---|---|---|---|---|---|
-|Featureclass|x|x|x|-|-|-|-|
-|Rasterlayer|-|-|-|x|x|-|-|
-|Vectorlayer|-|-|-|-|-|x|-|
-|Commandline|-|-|-|-|-|-|x|
+|Test Class|ai?|nas?|sas?|gtr?|icr?|vcr?|meta?|ceh?|
+|---|---|---|---|---|---|---|---|---|
+|Featureclass|x|x|x|-|-|-|-|-|
+|Rasterlayer|-|-|-|x|x|-|-|-|
+|Vectorlayer|-|-|-|-|-|x|-|-|
+|MetadataMapped|-|-|-|-|-|-|x|-|
+|Commandline|-|-|-|-|-|-|-|x|
+
+Pendent: Nur noch Commandline
+

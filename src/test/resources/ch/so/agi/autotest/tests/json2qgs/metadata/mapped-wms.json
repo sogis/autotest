@@ -1,0 +1,38 @@
+{
+  "$schema": "http://127.0.0.1:8080/sogis-wms-qgs-content.json",
+  "wms_metadata": {
+    "service_name": "WMS",
+    "service_title": "Mapped WMS service",
+    "service_abstract": "WMS metadata supplied by the fixture",
+    "keywords": ["metadata", "wms-mapped"],
+    "online_resource": "https://example.test/services/mapped-wms",
+    "contact_person": "Metadata Maintainer",
+    "contact_organization": "Autotest Mapping Office",
+    "contact_position": "Service owner",
+    "contact_phone": "+41-32-000-00-00",
+    "contact_mail": "metadata@example.test",
+    "fees": "none",
+    "access_constraints": "public",
+    "root_name": "mapped_wms_root",
+    "crs_list": ["EPSG:2056", "EPSG:4326"],
+    "bbox": {"bounds": [2599900, 1199900, 2600100, 1200100], "srid": 2056}
+  },
+  "wms_top_layers": ["mapped_wms_layer"],
+  "layers": [{
+    "name": "mapped_wms_layer",
+    "title": "Mapped WMS layer",
+    "type": "layer",
+    "datatype": "vector",
+    "postgis_datasource": {
+      "dbconnection": "dbname='autotest' host=postgres port=5432 user='autotest' password='autotest'",
+      "schema": "json2qgs",
+      "table": "readiness_point",
+      "unique_key": "id",
+      "geometry_field": "geom",
+      "geometry_type": "POINT",
+      "srid": 2056
+    },
+    "attributes": [{"name": "id"}],
+    "bbox": {"bounds": [2600000, 1200000, 2600010, 1200010], "srid": 2056}
+  }]
+}

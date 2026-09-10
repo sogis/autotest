@@ -18,7 +18,9 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.MountableFile;
+import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -44,6 +46,7 @@ class Json2QgsTests {
     private static final String RESOURCES = "ch/so/agi/autotest/tests/json2qgs/";
     private static final String DUMMY_PROJECT = "/io/data/dummy.qgs";
     private static final String WMS_NAMESPACE = "http://www.opengis.net/wms";
+    private static final String XLINK_NAMESPACE = "http://www.w3.org/1999/xlink";
     private static final String READINESS_PATH = "/ows/?MAP=" + DUMMY_PROJECT
         + "&SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities";
     private static final StringBuffer DATABASE_LOGS = new StringBuffer();
@@ -144,13 +147,7 @@ class Json2QgsTests {
 
     private static boolean publishesWmsLayer(String xml, String layerName) {
         try {
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newNSInstance();
-            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-            var builder = factory.newDocumentBuilder();
-            builder.setErrorHandler(new DefaultHandler());
-            Element root = builder.parse(new InputSource(new StringReader(xml))).getDocumentElement();
+            Element root = parseXml(xml).getDocumentElement();
             if (!WMS_NAMESPACE.equals(root.getNamespaceURI())
                 || !"WMS_Capabilities".equals(root.getLocalName())
                 || !"1.3.0".equals(root.getAttribute("version"))) {
@@ -171,9 +168,68 @@ class Json2QgsTests {
         catch (SAXException | IOException e) {
             return false;
         }
+    }
+
+    private static Document parseXml(String xml) throws SAXException, IOException {
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newNSInstance();
+            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            var builder = factory.newDocumentBuilder();
+            builder.setErrorHandler(new DefaultHandler());
+            return builder.parse(new InputSource(new StringReader(xml)));
+        }
         catch (ParserConfigurationException e) {
             throw new IllegalStateException("Cannot configure the json2qgs capabilities parser", e);
         }
+    }
+
+    private static Element firstElement(Document document, String localName) {
+        NodeList elements = document.getElementsByTagNameNS("*", localName);
+        assertThat(elements.getLength())
+            .as("capabilities should contain a %s element", localName)
+            .isPositive();
+        return (Element) elements.item(0);
+    }
+
+    private static Element directChild(Element parent, String localName) {
+        for (Node node = parent.getFirstChild(); node != null; node = node.getNextSibling()) {
+            if (node instanceof Element element && localName.equals(element.getLocalName())) {
+                return element;
+            }
+        }
+        throw new AssertionError("Expected " + parent.getLocalName() + " to contain " + localName);
+    }
+
+    private static String directChildText(Element parent, String localName) {
+        return directChild(parent, localName).getTextContent().strip();
+    }
+
+    private static Element elementWithChildText(Element parent, String elementName,
+        String childName, String expectedChildText) {
+        NodeList elements = parent.getElementsByTagNameNS("*", elementName);
+        for (int i = 0; i < elements.getLength(); i++) {
+            Element element = (Element) elements.item(i);
+            if (expectedChildText.equals(directChildText(element, childName))) {
+                return element;
+            }
+        }
+        throw new AssertionError("Expected " + parent.getLocalName() + " to contain " + elementName
+            + " with " + childName + " " + expectedChildText);
+    }
+
+    private static Element elementWithAttribute(Element parent, String elementName,
+        String attributeName, String expectedAttributeValue) {
+        NodeList elements = parent.getElementsByTagNameNS("*", elementName);
+        for (int i = 0; i < elements.getLength(); i++) {
+            Element element = (Element) elements.item(i);
+            if (expectedAttributeValue.equals(element.getAttribute(attributeName))) {
+                return element;
+            }
+        }
+        throw new AssertionError("Expected " + parent.getLocalName() + " to contain " + elementName
+            + " with " + attributeName + "=" + expectedAttributeValue);
     }
 
     private static Response wmsMap(String projectPath, String layerName, String bbox,
@@ -260,6 +316,191 @@ class Json2QgsTests {
             assertThat(publishesWmsLayer(response.asString(), layerName))
                 .as("GetCapabilities for %s should publish %s", project, layerName)
                 .isTrue();
+        }
+    }
+
+    @Nested
+    class Vectorlayer {
+
+        private static final String FIXTURE = "vectorlayer/rendering.sql";
+        private static final String CONFIGURATION = "vectorlayer/rendering.json";
+        private static final String PROJECT_NAME = "vectorlayer-rendering";
+        private static final String BBOX = "2600000,1200000,2600100,1200100";
+
+        @Test
+        void publishesConfiguredVectorLayersInWmsCapabilities() {
+            String project = generateVectorProject();
+
+            assertWmsLayerIsPublished(project, "vector_point");
+            assertWmsLayerIsPublished(project, "vector_line");
+            assertWmsLayerIsPublished(project, "vector_polygon");
+            assertWmsLayerIsPublished(project, "vector_multipart_polygon");
+        }
+
+        @Test
+        void rendersPointVectorLayerInWmsMap() {
+            Response response = wmsMap(generateVectorProject(), "vector_point", BBOX, 100, 100);
+
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThatImage(response.asByteArray())
+                .isOfType("png")
+                .hasSquareColor(45, 45, 10, new Color(255, 0, 0, 255));
+        }
+
+        @Test
+        void rendersLineVectorLayerInWmsMap() {
+            Response response = wmsMap(generateVectorProject(), "vector_line", BBOX, 100, 100);
+
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThatImage(response.asByteArray())
+                .isOfType("png")
+                .hasSquareColor(45, 48, 5, new Color(0, 255, 0, 255));
+        }
+
+        @Test
+        void rendersPolygonAndMultipartPolygonLayersInWmsMap() {
+            String project = generateVectorProject();
+            Response polygon = wmsMap(project, "vector_polygon", BBOX, 100, 100);
+            Response multipartPolygon = wmsMap(project, "vector_multipart_polygon", BBOX, 100, 100);
+
+            assertThat(polygon.statusCode()).isEqualTo(200);
+            assertThatImage(polygon.asByteArray())
+                .isOfType("png")
+                .hasPixelColor(30, 30, new Color(0, 0, 255, 255));
+            assertThat(multipartPolygon.statusCode()).isEqualTo(200);
+            assertThatImage(multipartPolygon.asByteArray())
+                .isOfType("png")
+                .hasPixelColor(67, 32, new Color(255, 0, 255, 255))
+                .hasPixelColor(67, 72, new Color(255, 0, 255, 255));
+        }
+
+        private String generateVectorProject() {
+            SqlFixtures.applySql(DATABASE, FIXTURE);
+            return Json2QgsProjects.generateAndPublishWmsProject(JSON2QGS, QGIS_SERVER,
+                CONFIGURATION, PROJECT_NAME);
+        }
+
+        private void assertWmsLayerIsPublished(String project, String layerName) {
+            Response response = qgisRequest(project)
+                .queryParam("SERVICE", "WMS")
+                .queryParam("VERSION", "1.3.0")
+                .queryParam("REQUEST", "GetCapabilities")
+                .when().get();
+
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThat(publishesWmsLayer(response.asString(), layerName))
+                .as("GetCapabilities for %s should publish %s", project, layerName)
+                .isTrue();
+        }
+    }
+
+    @Nested
+    class MetadataMapped {
+
+        private static final String WMS_CONFIGURATION = "metadata/mapped-wms.json";
+        private static final String WMS_PROJECT = "metadata-mapped-wms";
+        private static final String WFS_CONFIGURATION = "metadata/mapped-wfs.json";
+        private static final String WFS_PROJECT = "metadata-mapped-wfs";
+
+        @Test
+        void returnsConfiguredWmsServiceMetadataInCapabilities() throws SAXException, IOException {
+            Document capabilities = wmsCapabilities(generateWmsProject());
+            Element service = directChild(capabilities.getDocumentElement(), "Service");
+
+            assertThat(directChildText(service, "Name")).isEqualTo("WMS");
+            assertThat(directChildText(service, "Title")).isEqualTo("Mapped WMS service");
+            assertThat(directChildText(service, "Abstract"))
+                .isEqualTo("WMS metadata supplied by the fixture");
+            Element keywordList = directChild(service, "KeywordList");
+            assertThat(keywordList.getTextContent()).contains("metadata", "wms-mapped");
+            assertThat(directChild(service, "OnlineResource").getAttributeNS(XLINK_NAMESPACE, "href"))
+                .isEqualTo("https://example.test/services/mapped-wms");
+            Element contact = directChild(service, "ContactInformation");
+            assertThat(directChildText(directChild(contact, "ContactPersonPrimary"), "ContactPerson"))
+                .isEqualTo("Metadata Maintainer");
+            assertThat(directChildText(directChild(contact, "ContactPersonPrimary"), "ContactOrganization"))
+                .isEqualTo("Autotest Mapping Office");
+            assertThat(directChildText(contact, "ContactPosition")).isEqualTo("Service owner");
+            assertThat(directChildText(contact, "ContactVoiceTelephone")).isEqualTo("+41-32-000-00-00");
+            assertThat(directChildText(contact, "ContactElectronicMailAddress"))
+                .isEqualTo("metadata@example.test");
+            assertThat(directChildText(service, "Fees")).isEqualTo("none");
+            assertThat(directChildText(service, "AccessConstraints")).isEqualTo("public");
+
+            Element rootLayer = directChild(directChild(capabilities.getDocumentElement(), "Capability"), "Layer");
+            assertThat(directChildText(rootLayer, "Name")).isEqualTo("mapped_wms_root");
+            assertThat(rootLayer.getTextContent()).contains("EPSG:2056", "EPSG:4326");
+            assertThat(elementWithAttribute(rootLayer, "BoundingBox", "CRS", "EPSG:2056")
+                .getAttribute("minx")).isEqualTo("2599900");
+            assertThat(elementWithAttribute(rootLayer, "BoundingBox", "CRS", "EPSG:2056")
+                .getAttribute("maxy")).isEqualTo("1200100");
+        }
+
+        @Test
+        void returnsConfiguredWmsLayerMetadataInCapabilities() throws SAXException, IOException {
+            Document capabilities = wmsCapabilities(generateWmsProject());
+            Element rootLayer = directChild(directChild(capabilities.getDocumentElement(), "Capability"), "Layer");
+            Element layer = elementWithChildText(rootLayer, "Layer", "Name", "mapped_wms_layer");
+
+            assertThat(directChildText(layer, "Title")).isEqualTo("Mapped WMS layer");
+        }
+
+        @Test
+        void returnsConfiguredWfsServiceMetadataInCapabilities() throws SAXException, IOException {
+            Document capabilities = wfsCapabilities(generateWfsProject());
+            Element service = firstElement(capabilities, "ServiceIdentification");
+
+            assertThat(directChildText(service, "Title")).isEqualTo("Mapped WFS service");
+            assertThat(directChildText(service, "Abstract"))
+                .isEqualTo("WFS metadata supplied by the fixture");
+            assertThat(directChild(service, "Keywords").getTextContent()).contains("metadata", "wfs-mapped");
+            assertThat(directChildText(service, "Fees")).isEqualTo("none");
+            assertThat(directChildText(service, "AccessConstraints")).isEqualTo("public");
+            assertThat(directChildText(service, "ServiceType")).isEqualTo("WFS");
+            Element getCapabilities = elementWithAttribute(firstElement(capabilities, "OperationsMetadata"),
+                "Operation", "name", "GetCapabilities");
+            Element http = directChild(directChild(getCapabilities, "DCP"), "HTTP");
+            assertThat(directChild(http, "Get").getAttributeNS(XLINK_NAMESPACE, "href"))
+                .isEqualTo("https://example.test/services/mapped-wfs");
+        }
+
+        @Test
+        void returnsConfiguredWfsFeatureClassMetadataInCapabilities() throws SAXException, IOException {
+            Document capabilities = wfsCapabilities(generateWfsProject());
+            Element featureClass = elementWithChildText(firstElement(capabilities, "FeatureTypeList"),
+                "FeatureType", "Name", "mapped_wfs_featureclass");
+
+            assertThat(directChildText(featureClass, "Title")).isEqualTo("Mapped WFS feature class");
+        }
+
+        private String generateWmsProject() {
+            return Json2QgsProjects.generateAndPublishWmsProject(JSON2QGS, QGIS_SERVER,
+                WMS_CONFIGURATION, WMS_PROJECT);
+        }
+
+        private String generateWfsProject() {
+            return Json2QgsProjects.generateAndPublishWfsProject(JSON2QGS, QGIS_SERVER,
+                WFS_CONFIGURATION, WFS_PROJECT);
+        }
+
+        private Document wmsCapabilities(String project) throws SAXException, IOException {
+            Response response = qgisRequest(project)
+                .queryParam("SERVICE", "WMS")
+                .queryParam("VERSION", "1.3.0")
+                .queryParam("REQUEST", "GetCapabilities")
+                .when().get();
+            assertThat(response.statusCode()).isEqualTo(200);
+            return parseXml(response.asString());
+        }
+
+        private Document wfsCapabilities(String project) throws SAXException, IOException {
+            Response response = qgisRequest(project)
+                .queryParam("SERVICE", "WFS")
+                .queryParam("VERSION", "1.1.0")
+                .queryParam("REQUEST", "GetCapabilities")
+                .when().get();
+            assertThat(response.statusCode()).isEqualTo(200);
+            return parseXml(response.asString());
         }
     }
 
