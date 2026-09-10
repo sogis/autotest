@@ -1,6 +1,7 @@
 package ch.so.agi.autotest.tests.dataservice;
 
 import ch.so.agi.autotest.util.HttpTraffic;
+import ch.so.agi.autotest.util.PostgisContainers;
 import ch.so.agi.autotest.util.SqlFixtures;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
@@ -20,10 +21,6 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.MountableFile;
 
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
-
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -41,22 +38,11 @@ class DataServiceTests {
 
     private static final int HTTP_PORT = 9090;
     private static final Network NETWORK = Network.newNetwork();
-    private static final PostgreSQLContainer DATABASE = new PostgreSQLContainer(
-        DockerImageName.parse("postgis/postgis:17-3.5-alpine")
-            .asCompatibleSubstituteFor("postgres"))
-        .withDatabaseName("autotest")
-        .withUsername("autotest")
-        .withPassword("autotest")
-        .withNetwork(NETWORK)
-        .withNetworkAliases("postgres");
+    private static PostgreSQLContainer DATABASE;
+
     @BeforeAll
-    static void startEnvironment() throws SQLException {
-        DATABASE.start();
-        try (Connection connection = DATABASE.createConnection("");
-             Statement statement = connection.createStatement()) {
-            statement.execute("CREATE SCHEMA dataservice");
-            statement.execute("CREATE EXTENSION IF NOT EXISTS postgis");
-        }
+    static void startEnvironment() {
+        DATABASE = PostgisContainers.provision(NETWORK);
     }
 
     @AfterAll
@@ -65,7 +51,8 @@ class DataServiceTests {
         NETWORK.close();
     }
 
-    private static GenericContainer<?> startDataService(String configurationDirectory) {
+    private static GenericContainer<?> startDataService(String schema, String configurationDirectory) {
+        PostgisContainers.ensureSchema(DATABASE, schema);
         String resourceDirectory = "ch/so/agi/autotest/tests/dataservice/" + configurationDirectory;
         GenericContainer<?> dataService = new GenericContainer<>(
             DockerImageName.parse("sourcepole/qwc-data-service:v2026.1-lts"))
@@ -93,11 +80,12 @@ class DataServiceTests {
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     class NonSpatialTypesTest {
 
+        private static final String SCHEMA = "dataservice";
         private GenericContainer<?> dataService;
 
         @BeforeAll
         void startDataService() {
-            dataService = DataServiceTests.startDataService("non-spatial-types");
+            dataService = DataServiceTests.startDataService(SCHEMA, "non-spatial-types");
         }
 
         @AfterAll
@@ -153,11 +141,12 @@ class DataServiceTests {
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     class SpatialResponses {
 
+        private static final String SCHEMA = "dataservice";
         private GenericContainer<?> dataService;
 
         @BeforeAll
         void startDataService() {
-            dataService = DataServiceTests.startDataService("spatial-responses");
+            dataService = DataServiceTests.startDataService(SCHEMA, "spatial-responses");
         }
 
         @AfterAll
@@ -236,12 +225,13 @@ class DataServiceTests {
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     class ModifyFeature {
 
+        private static final String SCHEMA = "dataservice";
         private static final String DATASET_PATH = "/api/v1/data/dataservice.modify_features/";
         private GenericContainer<?> dataService;
 
         @BeforeAll
         void startDataService() {
-            dataService = DataServiceTests.startDataService("modify-feature");
+            dataService = DataServiceTests.startDataService(SCHEMA, "modify-feature");
         }
 
         @AfterAll
@@ -369,11 +359,12 @@ class DataServiceTests {
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     class FilterTest {
 
+        private static final String SCHEMA = "dataservice";
         private GenericContainer<?> dataService;
 
         @BeforeAll
         void startDataService() {
-            dataService = DataServiceTests.startDataService("filter");
+            dataService = DataServiceTests.startDataService(SCHEMA, "filter");
         }
 
         @AfterAll
@@ -481,13 +472,14 @@ class DataServiceTests {
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     class Errors {
 
+        private static final String SCHEMA = "dataservice";
         private static final String WRITABLE_DATASET_PATH = "/api/v1/data/dataservice.error_writable/";
         private static final String READ_ONLY_DATASET_PATH = "/api/v1/data/dataservice.error_read_only/";
         private GenericContainer<?> dataService;
 
         @BeforeAll
         void startDataService() {
-            dataService = DataServiceTests.startDataService("errors");
+            dataService = DataServiceTests.startDataService(SCHEMA, "errors");
         }
 
         @AfterAll

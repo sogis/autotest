@@ -1,0 +1,9 @@
+{
+  "$schema": "http://127.0.0.1:8080/sogis-wfs-qgs-content.json",
+  "layers": [
+    {"name":"two_geometries_point","title":"Two geometries point","postgis_datasource":{"dbconnection":"dbname='autotest' host=postgres port=5432 user='autotest' password='autotest'","schema":"json2qgs","table":"two_geometries","unique_key":"id","geometry_field":"point_geom","geometry_type":"POINT","srid":2056},"attributes":[{"name":"id"}],"bbox":{"bounds":[2599990,1199990,2600020,1200020],"srid":2056}},
+    {"name":"two_geometries_line","title":"Two geometries line","postgis_datasource":{"dbconnection":"dbname='autotest' host=postgres port=5432 user='autotest' password='autotest'","schema":"json2qgs","table":"two_geometries","unique_key":"id","geometry_field":"line_geom","geometry_type":"LINESTRING","srid":2056},"attributes":[{"name":"id"}],"bbox":{"bounds":[2599990,1199990,2600020,1200020],"srid":2056}},
+    {"name":"optional_point","title":"Optional point","postgis_datasource":{"dbconnection":"dbname='autotest' host=postgres port=5432 user='autotest' password='autotest'","schema":"json2qgs","table":"optional_point","unique_key":"id","geometry_field":"geom","geometry_type":"POINT","srid":2056},"attributes":[{"name":"id"}],"bbox":{"bounds":[2599990,1199990,2600020,1200020],"srid":2056}},
+    {"name":"multipart_polygon","title":"Multipart polygon","postgis_datasource":{"dbconnection":"dbname='autotest' host=postgres port=5432 user='autotest' password='autotest'","schema":"json2qgs","table":"multipart_polygon","unique_key":"id","geometry_field":"geom","geometry_type":"MULTIPOLYGON","srid":2056},"attributes":[{"name":"id"}],"bbox":{"bounds":[2599990,1199990,2600020,1200020],"srid":2056}}
+  ]
+}

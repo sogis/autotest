@@ -13,8 +13,8 @@ from both a image catalogue and a single geotiff file.
 ## Test aspects
 
 Tests generate a `.qgs` project and load it in QGIS Server. Verify vector
-feature classes through WFS `GetCapabilities`, `DescribeFeatureType`, and
-`GetFeature`. Verify layers through WMS `GetCapabilities` and `GetMap`.
+feature classes through OAPIF (WFS3) collection discovery, collection details,
+and feature items. Verify layers through WMS `GetCapabilities` and `GetMap`.
 Use synthetic, versioned, deterministic fixtures for all scenarios.
 
 |Group|Aspect|Expected behavior|
@@ -39,4 +39,3 @@ The matrix shows, which test class covers the above noted aspects
 |Rasterlayer|-|-|-|x|x|-|-|
 |Vectorlayer|-|-|-|-|-|x|-|
 |Commandline|-|-|-|-|-|-|x|
-

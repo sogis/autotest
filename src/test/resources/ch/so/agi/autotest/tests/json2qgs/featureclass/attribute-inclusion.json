@@ -1,0 +1,15 @@
+{
+  "$schema": "http://127.0.0.1:8080/sogis-wfs-qgs-content.json",
+  "layers": [{
+    "name": "attribute_inclusion",
+    "title": "Attribute inclusion",
+    "postgis_datasource": {
+      "dbconnection": "dbname='autotest' host=postgres port=5432 user='autotest' password='autotest'",
+      "schema": "json2qgs", "table": "attribute_inclusion",
+      "unique_key": "id", "geometry_field": "geom", "geometry_type": "POINT", "srid": 2056
+    },
+    "qml_base64": "PHFnaXMgdmVyc2lvbj0iMy40NC4xNCI+PGV4Y2x1ZGVBdHRyaWJ1dGVzV0ZTPjxhdHRyaWJ1dGU+ZXhjbHVkZWRfdGV4dDwvYXR0cmlidXRlPjwvZXhjbHVkZUF0dHJpYnV0ZXNXRlM+PC9xZ2lzPg==",
+    "attributes": [{"name": "id"}, {"name": "included_text"}],
+    "bbox": {"bounds": [2599990, 1199990, 2600010, 1200010], "srid": 2056}
+  }]
+}
