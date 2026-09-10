@@ -1,0 +1,15 @@
+{
+  "$schema": "http://127.0.0.1:8080/sogis-wms-qgs-content.json",
+  "wms_top_layers": ["image_catalogue"],
+  "layers": [{
+    "name": "image_catalogue",
+    "title": "Image catalogue",
+    "type": "layer",
+    "datatype": "raster",
+    "raster_datasource": {
+      "datasource": "/io/data/rasterlayer/image-catalogue.vrt",
+      "srid": 2056
+    },
+    "bbox": {"bounds": [2600000, 1200000, 2600300, 1200090], "srid": 2056}
+  }]
+}

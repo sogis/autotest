@@ -29,11 +29,13 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
 import java.io.StringReader;
+import java.awt.Color;
 import java.time.Duration;
 import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
+import static ch.so.agi.autotest.util.ImageAssertions.assertThatImage;
 
 @Execution(ExecutionMode.SAME_THREAD)
 class Json2QgsTests {
@@ -53,6 +55,16 @@ class Json2QgsTests {
         .withNetwork(NETWORK)
         .withCopyFileToContainer(MountableFile.forClasspathResource(RESOURCES + "readiness/dummy.qgs", 0644),
             DUMMY_PROJECT)
+        .withCopyFileToContainer(MountableFile.forClasspathResource(RESOURCES + "rasterlayer/single-geotiff.tif", 0644),
+            "/io/data/rasterlayer/single-geotiff.tif")
+        .withCopyFileToContainer(MountableFile.forClasspathResource(RESOURCES + "rasterlayer/catalogue-left.tif", 0644),
+            "/io/data/rasterlayer/catalogue-left.tif")
+        .withCopyFileToContainer(MountableFile.forClasspathResource(RESOURCES + "rasterlayer/catalogue-centre.tif", 0644),
+            "/io/data/rasterlayer/catalogue-centre.tif")
+        .withCopyFileToContainer(MountableFile.forClasspathResource(RESOURCES + "rasterlayer/catalogue-right.tif", 0644),
+            "/io/data/rasterlayer/catalogue-right.tif")
+        .withCopyFileToContainer(MountableFile.forClasspathResource(RESOURCES + "rasterlayer/image-catalogue.vrt", 0644),
+            "/io/data/rasterlayer/image-catalogue.vrt")
         .withExposedPorts(HTTP_PORT)
         .withEnv("QGIS_SERVER_LOG_STDERR", "1")
         .withEnv("QGIS_SERVER_LOG_LEVEL", "0")
@@ -61,7 +73,7 @@ class Json2QgsTests {
         .waitingFor(Wait.forHttp(READINESS_PATH)
             .forPort(HTTP_PORT)
             .forStatusCode(200)
-            .forResponsePredicate(Json2QgsTests::publishesReadinessLayer)
+            .forResponsePredicate(xml -> publishesWmsLayer(xml, "readiness_point"))
             .withReadTimeout(Duration.ofSeconds(10))
             .withStartupTimeout(Duration.ofSeconds(120)));
     private static final GenericContainer<?> JSON2QGS = new GenericContainer<>(
@@ -130,7 +142,7 @@ class Json2QgsTests {
         return QgisServerRequests.forOapifProject(QGIS_SERVER, HTTP_PORT, projectPath, resourcePath);
     }
 
-    private static boolean publishesReadinessLayer(String xml) {
+    private static boolean publishesWmsLayer(String xml, String layerName) {
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newNSInstance();
             factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
@@ -150,7 +162,7 @@ class Json2QgsTests {
                 var parent = name.getParentNode();
                 if ("Layer".equals(parent.getLocalName())
                     && WMS_NAMESPACE.equals(parent.getNamespaceURI())
-                    && "readiness_point".equals(name.getTextContent().strip())) {
+                    && layerName.equals(name.getTextContent().strip())) {
                     return true;
                 }
             }
@@ -162,6 +174,22 @@ class Json2QgsTests {
         catch (ParserConfigurationException e) {
             throw new IllegalStateException("Cannot configure the json2qgs capabilities parser", e);
         }
+    }
+
+    private static Response wmsMap(String projectPath, String layerName, String bbox,
+        int width, int height) {
+        return qgisRequest(projectPath)
+            .queryParam("SERVICE", "WMS")
+            .queryParam("VERSION", "1.3.0")
+            .queryParam("REQUEST", "GetMap")
+            .queryParam("LAYERS", layerName)
+            .queryParam("CRS", "EPSG:2056")
+            .queryParam("BBOX", bbox)
+            .queryParam("WIDTH", width)
+            .queryParam("HEIGHT", height)
+            .queryParam("FORMAT", "image/png")
+            .queryParam("TRANSPARENT", "FALSE")
+            .when().get();
     }
 
     @Nested
@@ -181,9 +209,56 @@ class Json2QgsTests {
             assertThat(response.statusCode())
                 .as("GET %s: dummy PostGIS project response: %s", READINESS_PATH, response.asString())
                 .isEqualTo(200);
-            assertThat(publishesReadinessLayer(response.asString()))
+            assertThat(publishesWmsLayer(response.asString(), "readiness_point"))
                 .as("GET %s: expected WMS 1.3.0 capabilities publishing readiness_point, received: %s",
                     READINESS_PATH, response.asString())
+                .isTrue();
+        }
+    }
+
+    @Nested
+    class Rasterlayer {
+
+        @Test
+        void publishesAndRendersSingleGeoTiffRaster() {
+            String project = Json2QgsProjects.generateAndPublishWmsProject(JSON2QGS, QGIS_SERVER,
+                "rasterlayer/single-geotiff.json", "rasterlayer-single-geotiff");
+            assertWmsLayerIsPublished(project, "single_geotiff");
+
+            Response response = wmsMap(project, "single_geotiff",
+                "2600000,1200000,2600100,1200090", 100, 90);
+
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThatImage(response.asByteArray())
+                .isOfType("png")
+                .hasSquareColor(45, 40, 10, new Color(214, 93, 44, 255));
+        }
+
+        @Test
+        void publishesAndRendersImageCatalogueRaster() {
+            String project = Json2QgsProjects.generateAndPublishWmsProject(JSON2QGS, QGIS_SERVER,
+                "rasterlayer/image-catalogue.json", "rasterlayer-image-catalogue");
+            assertWmsLayerIsPublished(project, "image_catalogue");
+
+            Response response = wmsMap(project, "image_catalogue",
+                "2600000,1200000,2600300,1200090", 300, 90);
+
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThatImage(response.asByteArray())
+                .isOfType("png")
+                .hasPixelColor(150, 45, new Color(0, 255, 0, 255));
+        }
+
+        private void assertWmsLayerIsPublished(String project, String layerName) {
+            Response response = qgisRequest(project)
+                .queryParam("SERVICE", "WMS")
+                .queryParam("VERSION", "1.3.0")
+                .queryParam("REQUEST", "GetCapabilities")
+                .when().get();
+
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThat(publishesWmsLayer(response.asString(), layerName))
+                .as("GetCapabilities for %s should publish %s", project, layerName)
                 .isTrue();
         }
     }

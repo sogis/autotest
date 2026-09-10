@@ -1,0 +1,15 @@
+{
+  "$schema": "http://127.0.0.1:8080/sogis-wms-qgs-content.json",
+  "wms_top_layers": ["single_geotiff"],
+  "layers": [{
+    "name": "single_geotiff",
+    "title": "Single GeoTIFF",
+    "type": "layer",
+    "datatype": "raster",
+    "raster_datasource": {
+      "datasource": "/io/data/rasterlayer/single-geotiff.tif",
+      "srid": 2056
+    },
+    "bbox": {"bounds": [2600000, 1200000, 2600100, 1200090], "srid": 2056}
+  }]
+}
